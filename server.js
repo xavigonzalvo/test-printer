@@ -9,6 +9,21 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.text({ type: '*/*' }));
 
+// Log every request so we can see exactly what the Instant ID search sends:
+// method, full URL, query, headers and body. Run the search on Windows, then
+// read this server's console to learn the request contract it expects.
+app.use((req, res, next) => {
+  console.log('\n--- incoming request ---------------------------------------');
+  console.log(req.method, req.originalUrl);
+  console.log('headers:', JSON.stringify(req.headers, null, 2));
+  if (req.body && Object.keys(req.body).length) {
+    console.log('body:', JSON.stringify(req.body, null, 2));
+  } else if (typeof req.body === 'string' && req.body) {
+    console.log('body (raw):', req.body);
+  }
+  next();
+});
+
 // --- Sample card record -----------------------------------------------------
 // These are the fields a Sigma DS3 card design typically maps to. Override any
 // of them with query params, e.g. /card.json?name=Jane%20Doe&id=2
