@@ -11,25 +11,63 @@ app.use(express.text({ type: '*/*' }));
 
 // --- Sample card record -----------------------------------------------------
 // These are the fields a Sigma DS3 card design typically maps to. Override any
-// of them with query params, e.g. /card.json?name=Jane%20Doe&id=12345
+// of them with query params, e.g. /card.json?name=Jane%20Doe&id=2
+
+// 1x1 transparent PNG placeholder, shared by every record's photoBase64.
+const PHOTO_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+// Two known users. Lookups by id return the matching one; id=1 is the default.
+const USERS = {
+  1: {
+    id: '1',
+    firstName: 'Alice',
+    lastName: 'Johnson',
+    name: 'Alice Johnson',
+    title: 'Software Engineer',
+    department: 'Engineering',
+    company: 'Example Corp',
+    email: 'alice@example.com',
+    issueDate: '2026-05-30',
+    expiryDate: '2030-05-30'
+  },
+  2: {
+    id: '2',
+    firstName: 'Bob',
+    lastName: 'Smith',
+    name: 'Bob Smith',
+    title: 'Product Manager',
+    department: 'Product',
+    company: 'Example Corp',
+    email: 'bob@example.com',
+    issueDate: '2026-05-30',
+    expiryDate: '2030-05-30'
+  }
+};
+
 function buildRecord(req) {
   const q = req.query || {};
+  const p = req.params || {};
+  // A path param (/card.json/:id) wins over ?id=, which wins over the default.
+  const id = p.id || q.id || '1';
+  const base = USERS[id] || USERS[1];
+  // Start from the known user, then let query params override any field.
   return {
-    id: q.id || '100245',
-    firstName: q.firstName || 'Alice',
-    lastName: q.lastName || 'Johnson',
-    name: q.name || 'Alice Johnson',
-    title: q.title || 'Software Engineer',
-    department: q.department || 'Engineering',
-    company: q.company || 'Example Corp',
-    email: q.email || 'alice@example.com',
-    issueDate: q.issueDate || '2026-05-30',
-    expiryDate: q.expiryDate || '2030-05-30',
+    ...base,
+    id,
+    firstName: q.firstName || base.firstName,
+    lastName: q.lastName || base.lastName,
+    name: q.name || base.name,
+    title: q.title || base.title,
+    department: q.department || base.department,
+    company: q.company || base.company,
+    email: q.email || base.email,
+    issueDate: q.issueDate || base.issueDate,
+    expiryDate: q.expiryDate || base.expiryDate,
     // A photo can be supplied as a reachable URL...
     photoUrl: q.photoUrl || `http://${req.headers.host}/photo.png`,
     // ...or as inline base64 (1x1 transparent PNG placeholder here).
-    photoBase64:
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+    photoBase64: PHOTO_BASE64
   };
 }
 
@@ -43,9 +81,10 @@ function xmlEscape(s) {
 app.get('/', (req, res) => {
   res.json({
     message: 'Entrust Sigma DS3 web data-source test server',
-    hint: 'Point the printer\'s web source at one of these. Override fields with query params, e.g. ?id=12345&name=Jane%20Doe',
+    hint: 'Point the printer\'s web source at one of these. Two users exist: id=1 (Alice Johnson) and id=2 (Bob Smith). Pass the id in the path (/card.json/2) or as a query param (/card.json?id=2). Override any field with query params too, e.g. ?name=Jane%20Doe',
     endpoints: {
-      '/card.json': 'Single record as a JSON object',
+      '/user/:id': 'Lookup by path param, returns a JSON object (e.g. /user/1 or /user/2)',
+      '/card.json': 'Single record as a JSON object (also /card.json/:id)',
       '/card.array.json': 'Single record wrapped in a JSON array',
       '/card.nested.json': 'Record nested under a "record"/"data" key',
       '/card.xml': 'Record as XML (elements)',
@@ -59,21 +98,24 @@ app.get('/', (req, res) => {
 });
 
 // --- JSON variants ----------------------------------------------------------
-app.all('/card.json', (req, res) => {
+// Each route accepts both a query-param form (/card.json?id=123) and a
+// path-param form (/card.json/123), so you can test whichever URL template the
+// Sigma client uses. /user/:id is a plain alias for the JSON object form.
+app.all(['/card.json', '/card.json/:id', '/user/:id'], (req, res) => {
   res.json(buildRecord(req));
 });
 
-app.all('/card.array.json', (req, res) => {
+app.all(['/card.array.json', '/card.array.json/:id'], (req, res) => {
   res.json([buildRecord(req)]);
 });
 
-app.all('/card.nested.json', (req, res) => {
+app.all(['/card.nested.json', '/card.nested.json/:id'], (req, res) => {
   const record = buildRecord(req);
   res.json({ status: 'ok', count: 1, record, data: [record] });
 });
 
 // --- XML variants -----------------------------------------------------------
-app.all('/card.xml', (req, res) => {
+app.all(['/card.xml', '/card.xml/:id'], (req, res) => {
   const r = buildRecord(req);
   const body =
     '<?xml version="1.0" encoding="UTF-8"?>\n<record>\n' +
@@ -84,7 +126,7 @@ app.all('/card.xml', (req, res) => {
   res.type('application/xml').send(body);
 });
 
-app.all('/card.xml.attrs', (req, res) => {
+app.all(['/card.xml.attrs', '/card.xml.attrs/:id'], (req, res) => {
   const r = buildRecord(req);
   const attrs = Object.entries(r)
     .map(([k, v]) => `${k}="${xmlEscape(v)}"`)
@@ -95,7 +137,7 @@ app.all('/card.xml.attrs', (req, res) => {
 });
 
 // --- CSV --------------------------------------------------------------------
-app.all('/card.csv', (req, res) => {
+app.all(['/card.csv', '/card.csv/:id'], (req, res) => {
   const r = buildRecord(req);
   const keys = Object.keys(r);
   const escape = (v) => `"${String(v).replace(/"/g, '""')}"`;
@@ -105,17 +147,14 @@ app.all('/card.csv', (req, res) => {
 });
 
 // --- Plain text (pipe-delimited) -------------------------------------------
-app.all('/card.txt', (req, res) => {
+app.all(['/card.txt', '/card.txt/:id'], (req, res) => {
   const r = buildRecord(req);
   res.type('text/plain').send(Object.values(r).join('|') + '\n');
 });
 
 // --- Sample photo -----------------------------------------------------------
 app.get('/photo.png', (req, res) => {
-  const png = Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-    'base64'
-  );
+  const png = Buffer.from(PHOTO_BASE64, 'base64');
   res.type('image/png').send(png);
 });
 
