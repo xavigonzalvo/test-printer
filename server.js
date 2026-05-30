@@ -92,7 +92,7 @@ app.get('/', (req, res) => {
       '/card.csv': 'Record as CSV with header row',
       '/card.txt': 'Record as pipe-delimited plain text',
       '/id/:id': 'Returns just the id passed, e.g. {"id":"2"}',
-      '/ids/:ids': 'Returns an array of ids, e.g. ["1","2"]',
+      '/ids/:ids': 'Returns an array of objects, e.g. [{"id":"1"},{"id":"2"}]',
       '/photo.png': 'Sample 1x1 PNG (used by photoUrl)',
       '/echo': 'Echoes the request (method, headers, query, body) for debugging'
     }
@@ -179,7 +179,7 @@ app.all(['/ids', '/ids/:ids'], (req, res) => {
         .map((s) => s.trim())
         .filter(Boolean)
     : Object.keys(USERS);
-  res.json(ids);
+  res.json(ids.map((id) => ({ id })));
 });
 
 // --- Echo: see exactly what the printer sends -------------------------------
