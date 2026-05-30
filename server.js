@@ -92,6 +92,7 @@ app.get('/', (req, res) => {
       '/card.csv': 'Record as CSV with header row',
       '/card.txt': 'Record as pipe-delimited plain text',
       '/id/:id': 'Returns just the id passed, e.g. {"id":"2"}',
+      '/ids/:ids': 'Returns an array of ids, e.g. ["1","2"]',
       '/photo.png': 'Sample 1x1 PNG (used by photoUrl)',
       '/echo': 'Echoes the request (method, headers, query, body) for debugging'
     }
@@ -162,6 +163,23 @@ app.get('/photo.png', (req, res) => {
 // --- Id: just returns the id passed (path param or ?id=) --------------------
 app.all(['/id', '/id/:id'], (req, res) => {
   res.json({ id: req.params.id || req.query.id || null });
+});
+
+// --- Ids: returns an array of ids -------------------------------------------
+// Pass them comma-separated (/ids/1,2,3 or ?ids=1,2,3) or as repeated ?id=
+// params (?id=1&id=2). With nothing passed, returns the known user ids.
+app.all(['/ids', '/ids/:ids'], (req, res) => {
+  const raw =
+    req.params.ids ||
+    req.query.ids ||
+    (Array.isArray(req.query.id) ? req.query.id.join(',') : req.query.id);
+  const ids = raw
+    ? String(raw)
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : Object.keys(USERS);
+  res.json(ids);
 });
 
 // --- Echo: see exactly what the printer sends -------------------------------
