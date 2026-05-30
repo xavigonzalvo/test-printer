@@ -91,6 +91,7 @@ app.get('/', (req, res) => {
       '/card.xml.attrs': 'Record as XML (attributes)',
       '/card.csv': 'Record as CSV with header row',
       '/card.txt': 'Record as pipe-delimited plain text',
+      '/id/:id': 'Returns just the id passed, e.g. {"id":"2"}',
       '/photo.png': 'Sample 1x1 PNG (used by photoUrl)',
       '/echo': 'Echoes the request (method, headers, query, body) for debugging'
     }
@@ -156,6 +157,11 @@ app.all(['/card.txt', '/card.txt/:id'], (req, res) => {
 app.get('/photo.png', (req, res) => {
   const png = Buffer.from(PHOTO_BASE64, 'base64');
   res.type('image/png').send(png);
+});
+
+// --- Id: just returns the id passed (path param or ?id=) --------------------
+app.all(['/id', '/id/:id'], (req, res) => {
+  res.json({ id: req.params.id || req.query.id || null });
 });
 
 // --- Echo: see exactly what the printer sends -------------------------------
